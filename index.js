@@ -1,6 +1,6 @@
 const express = require('express');
 const app= express();
-let notes =[];
+
 const PORT= 3000;
 
 app.use(express.json());
@@ -15,11 +15,13 @@ app.listen(PORT, ()=>{
 });
 
 app.get('/notes',(req, res)=>{
-    res.json(notes);
+    let notes= loadNotes();
+    res.json(loadNotes());
 
 });
 
 app.post('/notes',(req,res)=>{
+    let notes= loadNotes();
     const {title, content}=req.body;
 
     if(!title|| !content){
@@ -32,6 +34,7 @@ app.post('/notes',(req,res)=>{
         content
     };
     notes.push(newNote);
+    saveNotes(notes);
 
     res.status(201).json({
         message: 'Note added',
@@ -41,6 +44,7 @@ app.post('/notes',(req,res)=>{
 
 
 app.delete('/notes/:id', (req,res)=>{
+    let notes=loadNotes();
     const noteId= parseInt(req.params.id);
     const index= notes.findIndex(note=>note.id===noteId);
 
@@ -49,7 +53,7 @@ app.delete('/notes/:id', (req,res)=>{
 
     }
     const deletedNote= notes.splice(index,1)[0];
-
+    saveNotes(notes);
     res.status(200).json({
         message:'Note deleted',
         note: deletedNote
@@ -62,6 +66,7 @@ app.delete('/notes/:id', (req,res)=>{
 });
 
 app.put('/notes/:id', (req,res)=>{
+    let notes=loadNotes();
     const noteId=parseInt(req.params.id);
     const index=notes.findIndex(note=>note.id===noteId);
 
@@ -79,6 +84,8 @@ app.put('/notes/:id', (req,res)=>{
     notes[index].title= title;
     notes[index].content=content;
 
+    saveNotes(notes);
+
     res.status(201).json({
         message:'Note updated',
         note: notes[index]
@@ -88,6 +95,7 @@ app.put('/notes/:id', (req,res)=>{
 });
 
 app.get('/notes/:id', (req,res)=>{
+    let notes=loadNotes();
     const noteId=parseInt(req.params.id);
     const index=notes.findIndex(note=>note.id===noteId);
 
@@ -101,6 +109,34 @@ app.get('/notes/:id', (req,res)=>{
 
 
 });
+
+
+
+function loadNotes(){
+    try{
+        const data= fs.readFileSync('notes.json', 'utf8');
+        return JSON.parse(data);
+    } catch(error){
+       console.log('Error reading file:', error.message); 
+       return [];
+        
+    }
+
+
+}
+
+function saveNotes(notes){
+    try{
+        const data= JSON.stringify(notes, null,2);
+        fs.writeFileSync('notes.json',data);
+    }catch(error){
+        console.log('Error saving notes:',error.message);
+
+    }
+
+
+
+}
 
 
 
