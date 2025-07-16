@@ -1,9 +1,33 @@
 const express = require('express');
 const app= express();
-
 const PORT= 3000;
-
 app.use(express.json());
+
+//connecting to mongoose
+const mongoose = require("mongoose");
+
+mongoose.connect("mongodb://localhost:27017/notesDB")
+    .then(()=> console.log("Connected to MongoDB"))
+    .catch((err) => console.error("MongoDB connection error:",err));
+
+//creating schema 
+const noteSchema = new mongoose.Schema({
+    title: {
+        type:String,
+        required: true
+
+    },
+    content: {
+        type:String, 
+        required:true
+
+    }
+
+
+});
+//creating a model 
+const Note= mongoose.model("Note",noteSchema);
+
 
 app.get('/', (req, res)=>{
     res.send('Welcome to your Notes API!');
@@ -14,129 +38,110 @@ app.listen(PORT, ()=>{
 
 });
 
-app.get('/notes',(req, res)=>{
-    let notes= loadNotes();
-    res.json(loadNotes());
+app.get('/notes', async (req, res)=>{
+   try{
+    const notes = await Note.find();
+    res.json(notes);
+   }
+   catch(err){
+    res.status(500).json({error: "Failed to fetch notes"});
+   }
+    
 
 });
 
-app.post('/notes',(req,res)=>{
-    let notes= loadNotes();
-    const {title, content}=req.body;
+app.post('/notes',async(req,res)=>{
+   const {title, content} = req.body;
 
-    if(!title|| !content){
-       return res.status(400).json({error:'Title and content are required'});
-    }
+   if(!title || !content){
+    return res.status(400).json({error: "Title and Content are required"});
+   }
 
-    const newNote={
-        id: Date.now(),
-        title,
-        content
-    };
-    notes.push(newNote);
-    saveNotes(notes);
-
+   try{
+    const newNote = await Note.create({title, content});
     res.status(201).json({
-        message: 'Note added',
+        message:"New Note Added",
         note: newNote
+
     });
+   }
+   catch(err){
+    res.status(500).json({error: "Failed to add new note"});
+   }
+   
 });
 
 
-app.delete('/notes/:id', (req,res)=>{
-    let notes=loadNotes();
-    const noteId= parseInt(req.params.id);
-    const index= notes.findIndex(note=>note.id===noteId);
+app.delete('/notes/:id', async (req,res)=>{
+    try{
+        const deletedNote = await Note.findByIdAndDelete(req.params.id);
 
-    if(index === -1){
-      return res.status(404).json({error: 'Note not found'});
+        if(!deletedNote){
+            return res.status(404).json({error:"Note not found"});
+        }
+        res.status(200).json({
+            message:"Note successfully deleted",
+            note: deletedNote
+        });
+    }
+    catch(err){
+        res.status(400).json({
+            error: "Invalid note ID or deletion failed"
+        });
 
     }
-    const deletedNote= notes.splice(index,1)[0];
-    saveNotes(notes);
+    
+
+
+});
+
+app.put('/notes/:id', async (req,res)=>{
+   const {title, content}= req.body;
+
+   if(!title||!content){
+    return res.status(400).json({error: "Title and Content are required"});
+   }
+
+   try{
+    const updatedNote= await Note.findByIdAndUpdate(
+        req.params.id,
+        {title, content},
+        {new: true,runValidators:true }
+    );
+    if(!updatedNote){
+        return res.status(404).json({error: "Note not found"});
+    }
     res.status(200).json({
-        message:'Note deleted',
-        note: deletedNote
-
-
-    });
-
-
-
-});
-
-app.put('/notes/:id', (req,res)=>{
-    let notes=loadNotes();
-    const noteId=parseInt(req.params.id);
-    const index=notes.findIndex(note=>note.id===noteId);
-
-    if(index=== -1){
-        return res.status(404).json({error: 'Note not found'});
-    }
-
-    const {title, content}=req.body;
-
-    if(!title || !content){
-        return res.status(400).json({error:'Title and Content are required!!'});
-
-    }
-
-    notes[index].title= title;
-    notes[index].content=content;
-
-    saveNotes(notes);
-
-    res.status(201).json({
-        message:'Note updated',
-        note: notes[index]
-
+        message: "Note Updated",
+        note:updatedNote
 
     });
-});
-
-app.get('/notes/:id', (req,res)=>{
-    let notes=loadNotes();
-    const noteId=parseInt(req.params.id);
-    const index=notes.findIndex(note=>note.id===noteId);
-
-    if(index===-1){
-        return res.status(404).json({error: 'Note not found'});
-
-    }
-
-    res.json(notes[index]);
+   }
+   catch(err){
+    res.status(400).json({error: "Invalid note ID or update failed"});
+   }
 
 
 
 });
 
+app.get('/notes/:id', async (req,res)=>{
+    const noteId= req.params.id;
 
-
-function loadNotes(){
     try{
-        const data= fs.readFileSync('notes.json', 'utf8');
-        return JSON.parse(data);
-    } catch(error){
-       console.log('Error reading file:', error.message); 
-       return [];
-        
+        const note= await Note.findById(noteId);
+        if(!note){
+            return res.status(404).json({error:"Note not found"});
+        }
+        res.json(note);
     }
-
-
-}
-
-function saveNotes(notes){
-    try{
-        const data= JSON.stringify(notes, null,2);
-        fs.writeFileSync('notes.json',data);
-    }catch(error){
-        console.log('Error saving notes:',error.message);
-
+    catch(err){
+        res.status(400).json({error: "Invalid Note ID"});
     }
+});
 
 
 
-}
 
 
 
